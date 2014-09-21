@@ -1,0 +1,135 @@
+Prashanth Venkat
+Wednesday, September 21, 2014
+
+Synopsis
+This analysis determines the storm event types across the United States which have had the greatest cumulative impact in terms of Human Health and economic consequences. The analysis takes as its only source the NATIONAL WEATHER SERVICE INSTRUCTION 10-1605, AUGUST 17, 2007, Operations and Services, Performance, NWSPD 10-16, STORM DATA PREPARATION. This data, and hence report, covers a period from 1/1/1966 to 9/9/2011. Only the top 10 event types are reported. There is no attempt to interpret or group similar event types (e.g. ‘heat’ and ‘excessive heat’), although this may be useful given the similarity that some of these event types appear to have.
+
+Data Processing
+First download the storm data from http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2 to a local file
+stormurl <- "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+if (!file.exists("stormdata.csv.bz2")) {
+  download.file(url=stormurl, destfile="stormdata.csv.bz2",method="auto")}
+Unzip and read the stormdata file.
+Columns other than EVTYPE and relating to event date, fatalities, injuries and property damage are omitted
+storm <- read.csv(bzfile("stormdata.csv.bz2"), stringsAsFactors = FALSE)[c(2,8,23:28)]
+Confirm date range
+paste("Storm events from",min(storm$BGN_DATE),"to",max(storm$BGN_DATE))
+## [1] "Storm events from 1/1/1966 0:00:00 to 9/9/2011 0:00:00"
+Convert and sum the property and crop damage for each event to give single numeric of damage for event, expressed in dollars
+
+Note that that the columns PROPDMGEXP and CROPDMGEXP have some non standard values, as shown here:
+
+unique(storm$PROPDMGEXP)
+##  [1] "K" "M" ""  "B" "m" "+" "0" "5" "6" "?" "4" "2" "3" "h" "7" "H" "-"
+## [18] "1" "8"
+unique(storm$CROPDMGEXP)
+## [1] ""  "M" "K" "m" "B" "?" "0" "k" "2"
+Hence it’s assumed in this analysis:
+– That ‘m’ should be ‘M’, ie representing 1 Million
+– That ‘k’ should be ‘K’
+– All other values are converted to 0 as no other interpretation can safely be made
+storm$netpropdam <- apply(storm,1,function(x) {
+    # property damage (PROPDMG & PROPDMGEXP columns)
+    ((as.numeric(x[5]) * switch(EXPR=x[6], K = 1000, 
+                               M = 1000000, m = 1000000,
+                               B = 1000000000, 0)) 
+    +
+    # crop damage (CROPDMG & CROPDMGEXP columns)
+    (as.numeric(x[7]) * switch(EXPR=x[8], K = 1000, k = 1000,
+                               M = 1000000, m = 1000000,
+                               B = 1000000000, 0)))
+  })
+Aggregate the different events by EVTYPE to get the totals by event for Fatalities, Injuries and total property damage (including crop damage)
+stormsum <- aggregate(storm[,c(3,4,9)], by=list(storm$EVTYPE), FUN = sum)
+names(stormsum) <- c("event.type","fatalities","injuries","property.damage")
+Finally, determine the top 10 event types by criteria
+# Top 10 events by criteria
+fatalities <- stormsum[order(stormsum$fatalities,decreasing=TRUE),][1:10,c(1,2)]
+injuries   <- stormsum[order(stormsum$injuries,decreasing=TRUE),][1:10,c(1,3)]
+propdamage <- stormsum[order(stormsum$property.damage,decreasing=TRUE),][1:10,c(1,4)]
+Results
+1. Events that are Most Harmful to Human Health
+In this section, the storm event types that are most harmful to human health are shown, both in terms of Fatalities and Injuries.
+
+In both cases, the top 10 most harmful event types in terms of the cumulative total fatalities or injuries over the study period, followed by an illustration of the distribution of fatalities or injuries by individual events.
+
+In terms of Fatalities
+The top 10 event types in terms if total fatalities are as following:
+
+fatalities
+##         event.type fatalities
+## 834        TORNADO       5633
+## 130 EXCESSIVE HEAT       1903
+## 153    FLASH FLOOD        978
+## 275           HEAT        937
+## 464      LIGHTNING        816
+## 856      TSTM WIND        504
+## 170          FLOOD        470
+## 585    RIP CURRENT        368
+## 359      HIGH WIND        248
+## 19       AVALANCHE        224
+For each of these event types, the distribution of fatalities per event is shown immediately below:
+
+par(mar=c(10,4.1,4.1,2.1))
+boxplot((storm$FATALITIES[storm$EVTYPE %in% fatalities$event.type]+1) ~
+         storm$EVTYPE[storm$EVTYPE %in% fatalities$event.type],
+         las = 3, log="y", ylab="Fatalities", 
+         main="Distribution of Number of Fatalities per Event Type")
+plot of chunk unnamed-chunk-9
+
+Note that all data used in the plot above has been positively skewed by a value of 1 to support a logarithmic scale. All but one event type has a median of zero.
+In terms of Personal Injuries
+The top 10 event types in terms if total injuries are as following:
+
+injuries
+##            event.type injuries
+## 834           TORNADO    91346
+## 856         TSTM WIND     6957
+## 170             FLOOD     6789
+## 130    EXCESSIVE HEAT     6525
+## 464         LIGHTNING     5230
+## 275              HEAT     2100
+## 427         ICE STORM     1975
+## 153       FLASH FLOOD     1777
+## 760 THUNDERSTORM WIND     1488
+## 244              HAIL     1361
+For each of these event types, the distribution of injuries per event is shown immediately below:
+
+par(mar=c(11,4.1,4.1,2.1))
+boxplot((storm$INJURIES[storm$EVTYPE %in% injuries$event.type]+1) ~
+         storm$EVTYPE[storm$EVTYPE %in% injuries$event.type],
+         las = 3, log="y", ylab="Injuries", 
+         main="Distribution of Number of Injuries per Event Type")
+plot of chunk unnamed-chunk-11
+
+Note that all data used in the plot above has been positively skewed by a value of 1 to support a logarithmic scale. All event types have a median of zero.
+2. Event Types with the Greatest Economic Consequence
+In this section, the storm event types that have had greatest economic consequences are shown, in terms of the cost estimates for both property and crop damage, expressed in US dollars.
+
+The top 10 event types that have had the greatest cumulative property and cost damage are listed. Then a distribution of cost for each event type in the top 10 is then illustrated.
+
+Cumulative Property and Crop Damage
+The top 10 event types in terms of their cumulative estimated damage are as follows:
+
+propdamage
+##            event.type property.damage
+## 170             FLOOD       1.503e+11
+## 411 HURRICANE/TYPHOON       7.191e+10
+## 834           TORNADO       5.735e+10
+## 670       STORM SURGE       4.332e+10
+## 244              HAIL       1.876e+10
+## 153       FLASH FLOOD       1.756e+10
+## 95            DROUGHT       1.502e+10
+## 402         HURRICANE       1.461e+10
+## 590       RIVER FLOOD       1.015e+10
+## 427         ICE STORM       8.967e+09
+For each of these event types, the distribution of property damage per event is shown below:
+
+par(mar=c(12,4.1,4.1,2.1))
+boxplot(storm$netpropdam[storm$EVTYPE %in% propdamage$event.type]/1000000+1 ~
+         storm$EVTYPE[storm$EVTYPE %in% propdamage$event.type],
+         las = 3, log="y", ylab="Property Damage ($ Millions)", 
+         main="Distribution of Net Property Damage per Event Type")
+plot of chunk unnamed-chunk-13
+
+Note that all data used in the plot above has been positively skewed by a value of 1 to support a logarithmic scale. Most event types have a median of zero.
